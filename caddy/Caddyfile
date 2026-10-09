@@ -1,0 +1,22 @@
+# Caddy : proxy inverse devant Open WebUI.
+# SITE_ADDRESS=localhost  -> certificat auto-signé par l'autorité locale de Caddy (dev).
+# SITE_ADDRESS=un.domaine -> certificat Let's Encrypt obtenu et renouvelé automatiquement (prod).
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	# En-têtes de sécurité de base.
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Open WebUI (WebSocket compris : Caddy le gère sans réglage).
+	reverse_proxy open-webui:8080
+
+	log {
+		output stdout
+		format console
+	}
+}

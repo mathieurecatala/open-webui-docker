@@ -1,0 +1,122 @@
+# Pile Open WebUI auto-hébergée : proxy Caddy -> Open WebUI -> (Postgres, Ollama, tri-offres simulé).
+# Démarrage : cp .env.example .env && docker compose up -d
+# Seul Caddy publie des ports sur la machine ; tout le reste reste sur le réseau interne Docker.
+
+name: openwebui
+
+services:
+  # Base de données d'Open WebUI (comptes, conversations, réglages, outils).
+  postgres:
+    image: postgres:${POSTGRES_VERSION:-17.11-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Moteur de modèles local (CPU), sans clé ni service payant.
+  ollama:
+    image: ollama/ollama:${OLLAMA_VERSION:-0.40.2}
+    restart: unless-stopped
+    environment:
+      OLLAMA_KEEP_ALIVE: 30m
+    volumes:
+      - ${OLLAMA_VOLUME:-ollama}:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # Tâche ponctuelle : télécharge le modèle s'il n'est pas déjà présent, puis s'arrête.
+  ollama-modele:
+    image: ollama/ollama:${OLLAMA_VERSION:-0.40.2}
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["ollama", "pull", "${OLLAMA_MODEL:-qwen2.5:1.5b}"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+  # Service métier : API des offres d'emploi triées (version simulée, même contrat que tri-offres).
+  tri-offres:
+    build: ./tri-offres-simule
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # L'assistant : interface web + API, branché sur Postgres et Ollama.
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:${OPEN_WEBUI_VERSION:?OPEN_WEBUI_VERSION manquant dans .env}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
+      WEBUI_URL: https://${SITE_ADDRESS:-localhost}
+      WEBUI_NAME: Assistant interne
+      # Pas d'inscription publique : seul l'administrateur ajoute des comptes.
+      ENABLE_SIGNUP: "false"
+      # ... sauf le tout premier compte (administrateur), créé par scripts/initialiser.sh.
+      ENABLE_INITIAL_ADMIN_SIGNUP: "true"
+      DEFAULT_USER_ROLE: pending
+      OLLAMA_BASE_URL: http://ollama:11434
+      # API compatible OpenAI : activée seulement si une clé est fournie dans .env.
+      ENABLE_OPENAI_API: ${OPENAI_API_KEY:+true}
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Adresse interne du service tri-offres, lue par l'outil Python.
+      TRI_OFFRES_URL: http://tri-offres:8000
+      # Pas de télémétrie.
+      SCARF_NO_ANALYTICS: "true"
+      DO_NOT_TRACK: "true"
+      ANONYMIZED_TELEMETRY: "false"
+    volumes:
+      - open-webui:/app/backend/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      tri-offres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+
+  # Proxy inverse : seul point d'entrée, HTTPS automatique.
+  caddy:
+    image: caddy:${CADDY_VERSION:-2.11.7-alpine}
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-donnees:/data
+      - caddy-config:/config
+    depends_on:
+      open-webui:
+        condition: service_healthy
+
+volumes:
+  postgres:
+  ollama:
+  open-webui:
+  caddy-donnees:
+  caddy-config:
