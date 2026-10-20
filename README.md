@@ -4,14 +4,14 @@
 
 ## 1. Ce que c'est
 
-Un assistant IA privé, hébergé sur l'infrastructure de l'entreprise : les conversations restent sur son serveur. Le kit installe [Open WebUI](https://github.com/open-webui/open-webui) (interface de discussion de type ChatGPT), un modèle d'IA qui tourne sur la machine elle-même, sans clé ni abonnement, et une base Postgres. Il le rend exploitable par une équipe informatique : installation, sauvegarde, restauration et mise à jour testées en intégration continue, dossier d'exploitation.
+Un assistant IA privé, hébergé sur l'infrastructure de l'entreprise : les conversations restent sur son serveur. C'est la contrainte habituelle d'une banque ou d'une assurance, où les données des clients ne doivent pas partir chez un fournisseur d'IA. Le kit installe [Open WebUI](https://github.com/open-webui/open-webui) (interface de discussion de type ChatGPT), un modèle d'IA qui tourne sur la machine elle-même, sans clé ni abonnement, et une base Postgres. Il le rend exploitable par une équipe informatique : installation, sauvegarde, restauration et mise à jour testées en intégration continue, dossier d'exploitation.
 
 Démonstration : pas encore déployé chez un client. La pile tourne en local avec Docker, sans cloud.
 
 ## 2. Démarrage en 3 commandes
 
 Prérequis : Docker avec Compose v2, Python 3 (pour les scripts), environ 18 Go de disque (mesuré le 09/10/2026 : images Docker 17 Go, dont Ollama 9 Go et Open WebUI 6,5 Go, plus le modèle
-1 Go ; compter 7 Go de plus pendant une mise à jour d'Open WebUI) et 4 Go de RAM libres.
+1 Go, et 7 Go de plus pendant une mise à jour d'Open WebUI) et 4 Go de RAM libres.
 
 ```bash
 cp .env.example .env
@@ -28,7 +28,7 @@ Tests : `pip install -r requirements-tests.txt && pytest` (la pile doit tourner)
 
 ```
                     Navigateur des salariés
-                            │  HTTPS (443) ; HTTP 80 redirigé
+                            │  HTTPS (443), HTTP 80 redirigé
                             ▼
                  ┌──────────────────────┐
                  │  Caddy (proxy)       │  seul service qui publie des ports
@@ -50,18 +50,18 @@ Tests : `pip install -r requirements-tests.txt && pytest` (la pile doit tourner)
 L'outil métier (`outils/tickets.py`) est un « Tool » Open WebUI : quand on demande à l'assistant *« Quels tickets
 urgents encore ouverts parlent de la messagerie cette semaine ? »* avec l'outil activé (bouton « + » > Outils dans la
 discussion), le modèle peut appeler la fonction `chercher_tickets`, qui interroge l'API `GET /tickets` du service de
-tickets et renvoie la liste. Open WebUI utilise par défaut l'appel d'outil « natif » (le modèle demande lui-même l'outil) ; les tests
+tickets et renvoie la liste. Open WebUI utilise par défaut l'appel d'outil « natif » (le modèle demande lui-même l'outil). Les tests
 vérifient cette demande, puis l'exécution complète par l'API en mode « legacy ». C'est le principe pour relier l'assistant aux données d'une entreprise (tickets, stock, catalogue...).
 
 ## 4. Choix techniques et pourquoi
 
 | Choix | Pourquoi |
 |---|---|
-| Open WebUI **v0.11.4 épinglée** | Version marquée « Latest » sur la page des versions d'Open WebUI le 09/10/2026 (publiée le 21/09/2026). Une version précise ne change pas toute seule ; on met à jour quand on l'a décidé, avec `scripts/mettre-a-jour.sh`. |
+| Open WebUI **v0.11.4 épinglée** | Version marquée « Latest » sur la page des versions d'Open WebUI le 09/10/2026 (publiée le 21/09/2026). Une version précise ne change pas toute seule, on met à jour quand on l'a décidé, avec `scripts/mettre-a-jour.sh`. |
 | **Postgres** plutôt que SQLite | Base robuste, sauvegarde à chaud avec `pg_dump`, prête pour plusieurs utilisateurs simultanés. |
 | **Ollama + qwen2.5:1.5b** | Gratuit, tourne sur CPU (environ 1 Go). Le 0.5b, essayé d'abord, répondait « 3 » à « 2 + 2 » : trop peu fiable. |
 | **Caddy** | HTTPS automatique (Let's Encrypt en production, certificat local en dev) avec un fichier de configuration de 20 lignes. |
-| **Service de tickets simulé** | Un vrai outil de tickets demande son propre serveur et des données réelles ; le service simulé (`GET /tickets`, filtres statut, priorité, texte, pagination) sert des tickets fictifs datés par rapport au démarrage : démonstration et CI reproductibles. |
+| **Service de tickets simulé** | Un vrai outil de tickets demande son propre serveur et des données réelles. Le service simulé (`GET /tickets`, filtres statut, priorité, texte, pagination) sert des tickets fictifs datés par rapport au démarrage : démonstration et CI reproductibles. |
 | Scripts **bash** | Lisibles par un administrateur système, sans outil à installer. |
 | Tests **pytest** | Tournent contre la vraie pile : santé, connexion, réponse du modèle, appel de l'outil par le modèle, sauvegarde/restauration. |
 
@@ -80,7 +80,7 @@ questions des salariés partent alors chez ce fournisseur.
 ## 5. Sécurité
 
 **Ce qui est fait**
-- Seul Caddy est exposé ; Open WebUI (port 8080), Postgres (5432), Ollama (11434) et le service de tickets (8000) ne sont
+- Seul Caddy est exposé. Open WebUI (port 8080), Postgres (5432), Ollama (11434) et le service de tickets (8000) ne sont
   joignables que sur le réseau Docker interne. Un test le vérifie pour chacun des quatre ports : fermé depuis la
   machine, non publié par Docker, mais ouvert depuis l'intérieur du réseau Docker.
 - HTTPS partout, HTTP redirigé, en-têtes de sécurité de base.
@@ -88,7 +88,7 @@ questions des salariés partent alors chez ce fournisseur.
 - Aucun secret dans le dépôt : `.env` est ignoré par Git, `gitleaks` tourne avant chaque commit (`pre-commit`) et dans
   la CI sur tout l'historique.
 - Modèle local : les conversations ne quittent pas la machine. Télémétrie désactivée.
-- Versions d'images épinglées ; mise à jour toujours précédée d'une sauvegarde.
+- Versions d'images épinglées, et mise à jour toujours précédée d'une sauvegarde.
 
 **Ce qui manquerait en production réelle**
 - Remplacer **tous** les mots de passe et la clé de `.env` par des valeurs aléatoires longues (`openssl rand -hex 32`),
@@ -96,10 +96,10 @@ questions des salariés partent alors chez ce fournisseur.
 - Lancer `initialiser.sh` juste après le premier démarrage, avant d'ouvrir l'accès réseau : tant que l'administrateur
   n'existe pas, le premier compte créé devient administrateur.
 - Authentification d'entreprise (SSO OIDC, par exemple Entra ID) au lieu de mots de passe locaux.
-- Sauvegardes planifiées (cron) et copiées **hors de la machine** (autre site, stockage chiffré) ; test de restauration
-  régulier.
+- Sauvegardes planifiées (cron) et copiées **hors de la machine** (autre site, stockage chiffré), avec un test de
+  restauration régulier.
 - Supervision (alerte si `/health` ne répond plus), journaux centralisés, mises à jour de sécurité de l'hôte.
-- Rôles et groupes d'utilisateurs ; relire chaque outil Python avant de l'installer (un outil exécute du code sur le
+- Rôles et groupes d'utilisateurs. Relire chaque outil Python avant de l'installer (un outil exécute du code sur le
   serveur : seul l'administrateur doit pouvoir en ajouter).
 - Machine plus puissante (ou GPU) si beaucoup d'utilisateurs : sur CPU, une réponse prend quelques secondes.
 
@@ -111,14 +111,14 @@ lire les journaux, que faire si le modèle ne répond plus. En bref :
 ```bash
 ./scripts/sauvegarder.sh                              # -> sauvegardes/AAAAMMJJ-HHMMSS/
 ./scripts/restaurer.sh sauvegardes/AAAAMMJJ-HHMMSS
-./scripts/mettre-a-jour.sh v0.11.5                    # exemple : étiquette de la version suivante ; sauvegarde d'abord
+./scripts/mettre-a-jour.sh v0.11.5                    # exemple : étiquette de la version suivante, sauvegarde faite avant
 ```
 
 ## 7. Ce qui viendrait ensuite (non fait)
 
 - **Déploiement sur Azure Container Apps** (non fait) : on remplacerait Postgres par Azure Database for
   PostgreSQL, les volumes par Azure Files, Caddy par l'entrée HTTPS gérée de Container Apps et les secrets par Key
-  Vault ; Ollama tournerait dans un conteneur avec plus de mémoire, ou serait remplacé par Azure OpenAI.
+  Vault. Ollama tournerait dans un conteneur avec plus de mémoire, ou serait remplacé par Azure OpenAI.
 - Brancher l'outil sur une vraie API métier (tickets, stock, catalogue) : seule l'adresse du service changerait.
 - Sauvegardes planifiées et externalisées, supervision.
 - Base documentaire interne (RAG) : envoyer les documents de l'entreprise pour que l'assistant s'en serve.
@@ -139,6 +139,6 @@ lire les journaux, que faire si le modèle ne répond plus. En bref :
   préalable du titulaire des droits, OU (iii) une licence entreprise signée qui l'autorise expressément.
 - Ollama (MIT), Caddy (Apache 2.0), PostgreSQL (licence PostgreSQL), modèle Qwen2.5 1.5B (Apache 2.0).
 
-## Méthode
+## Auteur
 
-Mathieu Recatala, octobre 2026. Développement assisté par IA (Claude Code), validé par tests automatisés, intégration continue (GitHub Actions) et agents relecteurs.
+Mathieu Recatala, octobre 2026. Docker Compose, bash, pytest et GitHub Actions, développé avec Claude Code.

@@ -1,10 +1,10 @@
 # Décisions
 
-- 09/10/2026 : pile locale Docker, sans cloud ; modèle local gratuit via Ollama ; un outil métier d'exemple branché
-  sur une API interne simulée.
+- 09/10/2026 : pile locale Docker, sans cloud, avec un modèle local gratuit via Ollama et un outil métier d'exemple
+  branché sur une API interne simulée.
 - 09/10/2026 : Open WebUI épinglé en **v0.11.4**, version marquée « Latest » (non pré-version) sur
-  <https://github.com/open-webui/open-webui/releases> le 09/10/2026, publiée le 21/09/2026 ; Ollama 0.40.2, Postgres 17.11-alpine, Caddy 2.11.7-alpine, Python 3.12.15-slim. Toutes les versions sont dans `.env`.
-- 09/10/2026 : modèle `qwen2.5:1.5b` plutôt que `0.5b` : le 0.5b répondait « 3 » à « 2 + 2 » (test rouge) ;
+  <https://github.com/open-webui/open-webui/releases> le 09/10/2026, publiée le 21/09/2026. Ollama 0.40.2, Postgres 17.11-alpine, Caddy 2.11.7-alpine, Python 3.12.15-slim. Toutes les versions sont dans `.env`.
+- 09/10/2026 : modèle `qwen2.5:1.5b` plutôt que `0.5b` : le 0.5b répondait « 3 » à « 2 + 2 » (test rouge),
   le 1.5b (environ 1 Go) répond juste et appelle correctement l'outil métier.
 - 09/10/2026 : premier administrateur créé par `scripts/initialiser.sh` via l'API d'Open WebUI
   (`ENABLE_SIGNUP=false` + `ENABLE_INITIAL_ADMIN_SIGNUP=true` : seul le tout premier compte peut s'inscrire).
@@ -14,10 +14,10 @@
   La restauration arrête Open WebUI et Caddy, recrée la base et conserve `cache/`.
 - 09/10/2026 : les scripts appellent l'API d'Open WebUI depuis l'intérieur du conteneur (`docker compose exec`) : pas de
   problème de certificat ni de DNS, quel que soit `SITE_ADDRESS`.
-- 09/10/2026 : CI sur `ubuntu-24.04` (et non `ubuntu-latest`, qui bascule vers Ubuntu 26 le 19/10). Modèle Ollama mis
+- 09/10/2026 : CI sur `ubuntu-24.04` (et non `ubuntu-latest`, qui a basculé vers Ubuntu 26 le 19/10/2026). Modèle Ollama mis
   en cache (`OLLAMA_VOLUME=./cache-ollama`, clé = empreinte de `.env.example`). Gitleaks : binaire v8.30.1 téléchargé
   dans la CI, et hook pre-commit à la même version.
-- 09/10/2026 : depuis les versions récentes, Open WebUI appelle les outils en mode « natif » par défaut ; par
+- 09/10/2026 : depuis les versions récentes, Open WebUI appelle les outils en mode « natif » par défaut. Par
   l'API sans discussion ouverte, il renvoie la demande d'appel sans l'exécuter. Test scindé : demande de l'outil en mode
   natif (nom et paramètres), puis exécution de bout en bout avec `params.function_calling = "legacy"`.
 - 09/10/2026 : la CI démarre la pile en **v0.11.3** (avant-dernière version), initialise, puis lance
@@ -28,8 +28,8 @@
   et recréait Ollama sur un volume vide (« Model not found » après la mise à jour, vu dans la CI).
 - 20/10/2026 : outil métier d'exemple, un service de tickets de support **simulé** dans la pile (`tickets-simule/`, bibliothèque standard Python) : un vrai
   outil de tickets demande son propre serveur et des données réelles. Contrat : `GET /tickets` (statut, priorite,
-  texte, limite, decalage ; statut et priorite acceptent plusieurs valeurs séparées par des virgules) ; enveloppe
-  total/limite/decalage/tickets. Données fictives (personnes et services inventés), dates relatives au démarrage pour
+  texte, limite, decalage, et statut et priorite acceptent plusieurs valeurs séparées par des virgules). Réponse
+  dans une enveloppe total/limite/decalage/tickets. Données fictives (personnes et services inventés), dates relatives au démarrage pour
   que « cette semaine » ait toujours des résultats. Chaque filtre exclut au moins un ticket (fermé, ancien, non
   urgent, autre sujet) : les tests vérifient vraiment quelque chose.
 - 20/10/2026 : l'outil demande au service les tickets encore ouverts (`statut=ouvert,en_cours`), puis filtre lui-même
